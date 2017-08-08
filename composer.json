@@ -10,7 +10,8 @@
     "php": ">=5.6",
     "zanphp/support": "dev-master",
     "zanphp/exception": "dev-master",
-    "zanphp/timer": "dev-master"
+    "zanphp/timer": "dev-master",
+    "zanphp/container": "dev-master"
   },
   "autoload": {
     "psr-4": {
