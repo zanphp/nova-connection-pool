@@ -18,6 +18,7 @@ class NovaConnection extends Base implements Connection, Node
     protected $isAsync = true;
 
     private $serverInfo;
+    private $isClosed = false;
 
     public function __construct(array $serverInfo = [])
     {
@@ -122,6 +123,13 @@ class NovaConnection extends Base implements Connection, Node
 
     public function close()
     {
+        // FIX connect 失败, 未收到 RST包, onClose回调触发,
+        // 两次进入close, 导致两次触发reload, 连接成倍增长
+        if ($this->isClose) {
+            return;
+        }
+        $this->isClose = true;
+
         $this->closeSocket();
 
         /** @var $pool NovaClientPool */
