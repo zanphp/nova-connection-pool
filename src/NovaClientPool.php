@@ -143,9 +143,9 @@ class NovaClientPool
         try {
             $serviceChain = (yield getContext("service-chain"));
             if ($serviceChain instanceof ServiceChainer) {
-                $value = (yield getContext("service-chain-value"));
-                if (is_array($value) && isset($value["name"]) && is_scalar($value["name"])) {
-                    $connections = (yield $this->getConnectionsWithServiceChain($serviceChain, strval($value["name"])));
+                $name = (yield getContext("service-chain-name"));
+                if (is_scalar($name)) {
+                    $connections = (yield $this->getConnectionsWithServiceChain($serviceChain, strval($name)));
                 } else {
                     $connections = (yield $this->getConnectionsWithoutServiceChain($serviceChain));
                 }
