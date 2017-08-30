@@ -15,11 +15,12 @@ use swoole_client as SwooleClient;
 
 class NovaConnection extends Base implements Connection, Node
 {
-    private $clientCb;
+    private $onReceive;
+    private $onClose;
+
     protected $isAsync = true;
 
     private $serverInfo;
-    private $isClosed = false;
 
     public function __construct(array $serverInfo = [])
     {
@@ -70,16 +71,14 @@ class NovaConnection extends Base implements Connection, Node
 
     public function onReceive(SwooleClient $cli, $data)
     {
-        if (!is_callable($this->clientCb)) {
-            return;
-        }
-
-        try {
-            call_user_func($this->clientCb, $data);
-        } catch (\Throwable $t) {
-            echo_exception($t);
-        } catch (\Exception $e) {
-            echo_exception($e);
+        if ($onReceive = $this->onReceive) {
+            try {
+                $onReceive($data);
+            } catch (\Throwable $t) {
+                echo_exception($t);
+            } catch (\Exception $e) {
+                echo_exception($e);
+            }
         }
     }
 
@@ -92,9 +91,14 @@ class NovaConnection extends Base implements Connection, Node
         $this->inspect("error", $cli, true);
     }
 
-    public function setClientCb(callable $cb)
+    public function setOnReceive(callable $onReceive)
     {
-        $this->clientCb = $cb;
+        $this->onReceive = $onReceive;
+    }
+
+    public function setOnClose(callable $onClose)
+    {
+        $this->onClose = $onClose;
     }
 
     public function heartbeat()
@@ -135,6 +139,16 @@ class NovaConnection extends Base implements Connection, Node
             return;
         }
         $this->isClose = true;
+
+        if ($onClose = $this->onClose) {
+            try {
+                $onClose();
+            } catch (\Throwable $t) {
+                echo_exception($t);
+            } catch (\Exception $e) {
+                echo_exception($e);
+            }
+        }
 
         $this->closeSocket();
 
