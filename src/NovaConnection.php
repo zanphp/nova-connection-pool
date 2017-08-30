@@ -70,6 +70,10 @@ class NovaConnection extends Base implements Connection, Node
 
     public function onReceive(SwooleClient $cli, $data)
     {
+        if (!is_callable($this->clientCb)) {
+            return;
+        }
+
         try {
             call_user_func($this->clientCb, $data);
         } catch (\Throwable $t) {
