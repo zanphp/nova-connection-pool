@@ -7,6 +7,7 @@ use ZanPHP\Contracts\ConnectionPool\Connection;
 use ZanPHP\Contracts\ConnectionPool\Heartbeatable;
 use ZanPHP\Contracts\LoadBalance\Node;
 use ZanPHP\Coroutine\Task;
+use ZanPHP\Support\Arr;
 use ZanPHP\Support\Time;
 use ZanPHP\Timer\Timer;
 use swoole_client as SwooleClient;
@@ -110,9 +111,10 @@ class NovaConnection extends Base implements Connection, Node
 
     public function ping()
     {
+        $protocol = Arr::get($this->config, "server.protocol", "nova");
         try {
             /** @var Heartbeatable $heartbeatable */
-            $heartbeatable = make("heartbeatable:nova", [$this]);
+            $heartbeatable = make("heartbeatable:$protocol", [$this]);
             yield $heartbeatable->ping();
         } catch (\Throwable $t) {
         } catch (\Exception $e) {
