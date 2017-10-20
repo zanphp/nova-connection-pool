@@ -55,4 +55,8 @@ class NovaClientFactory implements ConnectionFactory
 
     }
 
+    public function getFactoryType()
+    {
+        return "NovaClient";
+    }
 }
