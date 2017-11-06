@@ -8,6 +8,7 @@ use ZanPHP\Contracts\LoadBalance\Node;
 use ZanPHP\Contracts\ServiceChain\ServiceChainer;
 use ZanPHP\Coroutine\Condition;
 use ZanPHP\Coroutine\Exception\ConditionException;
+use ZanPHP\EtcdRegistry\IDC;
 use ZanPHP\LoadBalance\LVSRoundRobinLoadBalance;
 use ZanPHP\LoadBalance\RandomLoadBalance;
 use ZanPHP\NovaConnectionPool\Exception\CanNotFindLoadBalancingStrategeMapException;
@@ -140,12 +141,15 @@ class NovaClientPool
 
         $connections = $this->connections;
 
+        $withServiceChain = false;
+        $hitServiceChain = false;
         try {
             $serviceChain = (yield getContext("service-chain"));
             if ($serviceChain instanceof ServiceChainer) {
                 $name = (yield getContext("service-chain-name"));
                 if (is_scalar($name)) {
-                    $connections = (yield $this->getConnectionsWithServiceChain($serviceChain, strval($name)));
+                    $connections = (yield $this->getConnectionsWithServiceChain($serviceChain, strval($name), $hitServiceChain));
+                    $withServiceChain = true;
                 } else {
                     $connections = (yield $this->getConnectionsWithoutServiceChain($serviceChain));
                 }
@@ -158,7 +162,43 @@ class NovaClientPool
             throw $e;
         }
 
-        yield $this->loadBalancingStrategy->select($connections);
+        yield $this->idcSelect($connections, $withServiceChain, $hitServiceChain);
+    }
+
+    private function idcSelect(array $connections, $withServiceChain, $hitServiceChain)
+    {
+        $idc = IDC::get();
+
+        if ($idc === false) {
+            // 无 IDC 信息, 旧逻辑, 无变更
+            yield $this->loadBalancingStrategy->select($connections);
+        } else {
+            // 有 IDC 信息, ServiceChain 优先级高
+            if ($withServiceChain) {
+                // 无 IDC 信息, 旧逻辑, 无变更
+                if ($hitServiceChain) {
+                    // 当前调用包含Service Chain标识，则路由到归属于该Service Chain的任意服务节点，不处理机房路由
+                    yield $this->loadBalancingStrategy->select($connections);
+                } else {
+                    // 如果没有归属于该Service Chain的服务节点，则排除掉所有隶属于Service Chain的服务节点之后路由到任意服务节点, 需要处理机房路由
+                    goto IDCSelector;
+                }
+            } else {
+                IDCSelector:
+                // 有 IDC 信息, 无 ServiceChain, 优先选取本机房, 无本地机房服务, 选取其他机房
+                $localConnections = [];
+                foreach ($connections as $connection) {
+                    if ($connection->getConfig()["idc"] === $idc) {
+                        $localConnections[] = $connection;
+                    }
+                }
+
+                if ($localConnections) {
+                    $connections = $localConnections;
+                }
+                yield $this->loadBalancingStrategy->select($connections);
+            }
+        }
     }
 
     /**
@@ -166,9 +206,11 @@ class NovaClientPool
      * 如果没有归属于该Service Chain的服务节点，则排除掉所有隶属于Service Chain的服务节点之后路由到任意服务节点
      * @param ServiceChainer $serviceChainer
      * @param $key
+     * @param bool $hit
      * @return \Generator|void
+     * @throws NoFreeConnectionException
      */
-    private function getConnectionsWithServiceChain(ServiceChainer $serviceChainer, $key)
+    private function getConnectionsWithServiceChain(ServiceChainer $serviceChainer, $key, &$hit = false)
     {
         $endpoints = (yield $serviceChainer->getEndpoints($this->appName, $key));
 
@@ -188,11 +230,13 @@ class NovaClientPool
             if (empty($connections)) {
                 throw new NoFreeConnectionException("no active service chain endpoint [app=$this->appName, key=$key]");
             } else {
+                $hit = true;
                 yield $connections;
                 return;
             }
         }
 
+        $hit = false;
         yield $this->getConnectionsWithoutServiceChain($serviceChainer);
     }
 

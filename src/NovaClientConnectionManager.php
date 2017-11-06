@@ -236,6 +236,7 @@ class NovaClientConnectionManager
 
         $key = "{$server["host"]}:{$server["port"]}";
         $value = [
+                "idc" => $server["idc"],
                 "host" => $server["host"],
                 "port" => $server["port"],
                 "weight" => isset($server["weight"]) ? $server["weight"] : 100,
