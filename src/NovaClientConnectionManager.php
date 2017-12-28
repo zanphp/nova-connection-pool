@@ -71,20 +71,20 @@ class NovaClientConnectionManager
         }
 
         $serviceMap = $this->serviceMap[$serviceKey];
-        if (in_array($method, $serviceMap["methods"], true)) {
-            $appName = $serviceMap["app_name"];
-            $pool = $this->getPool($appName);
+//        if (in_array($method, $serviceMap["methods"], true)) {
+        $appName = $serviceMap["app_name"];
+        $pool = $this->getPool($appName);
 
-            yield setContext("RPC::appName", $appName);
-            yield setContext("RPC::protocol", $protocol);
-            yield setContext("RPC::domain", $domain);
-            yield setContext("RPC::service", $service);
-            yield setContext("RPC::method", $method);
+        yield setContext("RPC::appName", $appName);
+        yield setContext("RPC::protocol", $protocol);
+        yield setContext("RPC::domain", $domain);
+        yield setContext("RPC::service", $service);
+        yield setContext("RPC::method", $method);
 
-            yield $pool->get();
-        } else {
-            throw new CanNotFindNovaServiceNameMethodException("service=$service, method=$method");
-        }
+        yield $pool->get();
+//        } else {
+//            throw new CanNotFindNovaServiceNameMethodException("service=$service, method=$method");
+//        }
     }
 
     private function getPool($appName, array $servers = [])
